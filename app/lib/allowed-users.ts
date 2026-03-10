@@ -1,6 +1,6 @@
 import { db } from "./db";
 
-export async function isEmailAllowed(email: string): Promise<boolean> {
+export async function isAllowedEmail(email: string): Promise<boolean> {
   if (!email?.trim()) return false;
 
   const normalizedEmail = email.trim().toLowerCase();

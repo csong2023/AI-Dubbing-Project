@@ -1,29 +1,31 @@
-import { NextRequest } from "next/server";
-import { isEmailAllowed } from "../../lib/allowed-users";
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { isAllowedEmail } from "../../lib/allowed-users";
 
-export async function POST(req: NextRequest) {
+export async function GET() {
   try {
-    const body = await req.json();
-    const email = body.email?.trim();
+    const session = await auth();
 
-    if (!email) {
-      return Response.json(
-        { allowed: false, error: "Email is required." },
-        { status: 400 }
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { allowed: false, error: "Unauthorized" },
+        { status: 401 }
       );
     }
 
-    const allowed = await isEmailAllowed(email);
+    const allowed = await isAllowedEmail(session.user.email);
 
-    return Response.json({ allowed });
+    return NextResponse.json({
+      allowed,
+      email: session.user.email,
+    });
   } catch (error) {
     console.error("check-access route error:", error);
 
-    return Response.json(
+    return NextResponse.json(
       {
         allowed: false,
-        error: "Internal server error.",
-        details: String(error),
+        error: "Internal server error",
       },
       { status: 500 }
     );

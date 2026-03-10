@@ -1,206 +1,534 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
+import {
+  Upload,
+  Languages,
+  Sparkles,
+  LogOut,
+  PlayCircle,
+  Download,
+  FileAudio,
+  FileVideo,
+  Loader2,
+  ShieldAlert,
+} from "lucide-react";
 
 export default function Home() {
   const { data: session, status } = useSession();
 
-  const [text, setText] = useState("");
-  const [audioUrl, setAudioUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [targetLang, setTargetLang] = useState("Korean");
+  const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [resultType, setResultType] = useState<"audio" | "video" | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [isAllowedUser, setIsAllowedUser] = useState(false);
-  const [checkingAccess, setCheckingAccess] = useState(false);
 
-  const userEmail = session?.user?.email ?? "";
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const checkAccess = async () => {
-      if (!session || !userEmail) {
-        setIsAllowedUser(false);
+    async function checkAccess() {
+      if (!session?.user?.email) return;
+
+      setAccessLoading(true);
+
+      try {
+        const res = await fetch("/api/check-access");
+        const data = await res.json();
+
+        setIsAllowed(Boolean(data.allowed));
+      } catch (error) {
+        console.error("access check error:", error);
+        setIsAllowed(false);
+      } finally {
+        setAccessLoading(false);
+      }
+    }
+
+    if (session) {
+      checkAccess();
+    }
+  }, [session]);
+
+  if (status === "loading") {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+        <div className="flex items-center gap-3 text-zinc-300">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading session...</span>
+        </div>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white">
+        <div className="mx-auto flex min-h-screen max-w-6xl items-center px-6 py-16">
+          <div className="grid w-full gap-10 lg:grid-cols-2">
+            <div className="flex flex-col justify-center">
+              <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300">
+                <Sparkles className="h-4 w-4" />
+                AI-powered video → translation → dubbing
+              </div>
+
+              <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
+                AI Dubbing Service
+              </h1>
+
+              <p className="mt-6 max-w-xl text-lg leading-8 text-zinc-400">
+                Upload audio or video, transcribe speech, translate it into your
+                target language, and generate a dubbed output in one streamlined
+                workflow.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <button
+                  onClick={() => signIn("google")}
+                  className="rounded-2xl bg-white px-6 py-3 font-medium text-black transition hover:scale-[1.02] hover:bg-zinc-200"
+                >
+                  Login with Google
+                </button>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-3 text-sm text-zinc-300">
+                  Fast upload · Translation · Dub generation
+                </div>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-fuchsia-500/20 via-cyan-500/10 to-blue-500/20 blur-3xl" />
+              <div className="relative rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl">
+                <div className="space-y-5">
+                  <FeatureRow
+                    icon={<Upload className="h-5 w-5" />}
+                    title="Upload media"
+                    desc="Supports audio and video input."
+                  />
+                  <FeatureRow
+                    icon={<PlayCircle className="h-5 w-5" />}
+                    title="Transcribe speech"
+                    desc="Extracts spoken text from the uploaded file."
+                  />
+                  <FeatureRow
+                    icon={<Languages className="h-5 w-5" />}
+                    title="Translate instantly"
+                    desc="Converts text into your selected target language."
+                  />
+                  <FeatureRow
+                    icon={<Sparkles className="h-5 w-5" />}
+                    title="Generate dubbed output"
+                    desc="Returns a playable audio or video result."
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (accessLoading || isAllowed === null) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center px-6">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-white/10">
+            <Loader2 className="h-6 w-6 animate-spin text-zinc-300" />
+          </div>
+          <h1 className="text-2xl font-semibold">Checking access</h1>
+          <p className="mt-2 text-zinc-400">
+            Verifying whether your account is allowed to use this service.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isAllowed) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center px-6">
+        <div className="w-full max-w-xl rounded-3xl border border-red-400/20 bg-white/5 p-8 text-center shadow-xl backdrop-blur">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10">
+            <ShieldAlert className="h-7 w-7 text-red-300" />
+          </div>
+
+          <h1 className="text-3xl font-bold tracking-tight">Access Denied</h1>
+
+          <p className="mt-3 text-zinc-400">
+            Your account is signed in, but this email is not on the allowed user list.
+          </p>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-zinc-900/70 p-4 text-sm text-zinc-300">
+            Signed in as{" "}
+            <span className="font-medium text-white">
+              {session.user?.email}
+            </span>
+          </div>
+
+          <div className="mt-6 flex justify-center gap-3">
+            <button
+              onClick={() => signOut()}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm text-zinc-200 transition hover:bg-white/10"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  async function handleGenerate() {
+    if (!file) {
+      alert("Upload a file first");
+      return;
+    }
+
+    setLoading(true);
+    setResultUrl(null);
+    setResultType(null);
+
+    try {
+      const form = new FormData();
+      form.append("file", file);
+
+      const transcribeRes = await fetch("/api/transcribe", {
+        method: "POST",
+        body: form,
+      });
+
+      if (!transcribeRes.ok) {
+        const errorText = await transcribeRes.text();
+        console.error("transcribe error:", errorText);
+        alert("Transcribe failed");
+        setLoading(false);
         return;
       }
 
+      const transcribeTextRaw = await transcribeRes.text();
+
+      let transcribeData: any;
       try {
-        setCheckingAccess(true);
-
-        const response = await fetch("/api/check-access", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email: userEmail }),
-        });
-
-        const data = await response.json();
-        setIsAllowedUser(Boolean(data.allowed));
-      } catch (err) {
-        console.error("Access check failed:", err);
-        setIsAllowedUser(false);
-      } finally {
-        setCheckingAccess(false);
+        transcribeData = JSON.parse(transcribeTextRaw);
+      } catch {
+        alert("Transcribe returned non-JSON response");
+        setLoading(false);
+        return;
       }
-    };
 
-    checkAccess();
-  }, [session, userEmail]);
+      const text = transcribeData.text?.trim();
 
-  const handleGenerateSpeech = async () => {
-    setError("");
-    setAudioUrl("");
+      if (!text) {
+        alert("Transcription returned empty text");
+        setLoading(false);
+        return;
+      }
 
-    if (!session) {
-      setError("먼저 로그인해주세요.");
-      return;
-    }
-
-    if (!isAllowedUser) {
-      setError("허용된 사용자만 이 서비스를 이용할 수 있습니다.");
-      return;
-    }
-
-    if (!text.trim()) {
-      setError("텍스트를 입력해주세요.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const response = await fetch("/api/tts", {
+      const translateRes = await fetch("/api/translate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({
+          text,
+          targetLang,
+        }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Server error response:", errorText);
-        throw new Error("음성 생성에 실패했습니다.");
+      if (!translateRes.ok) {
+        const errorText = await translateRes.text();
+        console.error("translate error:", errorText);
+        alert("Translate failed");
+        setLoading(false);
+        return;
       }
 
-      const audioBlob = await response.blob();
-      const url = URL.createObjectURL(audioBlob);
-      setAudioUrl(url);
+      const translateTextRaw = await translateRes.text();
+
+      let translateData: any;
+      try {
+        translateData = JSON.parse(translateTextRaw);
+      } catch {
+        alert("Translate returned non-JSON response");
+        setLoading(false);
+        return;
+      }
+
+      const translated = translateData.translatedText?.trim();
+
+      if (!translated) {
+        console.error("translateData:", translateData);
+        alert("Translation returned empty text");
+        setLoading(false);
+        return;
+      }
+
+      const dubForm = new FormData();
+      dubForm.append("file", file);
+      dubForm.append("text", translated);
+
+      const dubRes = await fetch("/api/dub", {
+        method: "POST",
+        body: dubForm,
+      });
+
+      if (!dubRes.ok) {
+        const dubError = await dubRes.text();
+        console.error("dub raw error:", dubError);
+        alert("Dub generation failed");
+        setLoading(false);
+        return;
+      }
+
+      const blob = await dubRes.blob();
+
+      if (blob.size === 0) {
+        alert("Dub returned empty result");
+        setLoading(false);
+        return;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const isVideoFile = file.type.startsWith("video/");
+
+      setResultUrl(url);
+      setResultType(isVideoFile ? "video" : "audio");
     } catch (err) {
       console.error(err);
-      setError("음성 생성 중 오류가 발생했습니다.");
+      alert("Error generating dub");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <main style={{ maxWidth: "720px", margin: "0 auto", padding: "40px" }}>
-      <h1 style={{ fontSize: "32px", fontWeight: "bold", marginBottom: "12px" }}>
-        AI Dubbing Service
-      </h1>
-
-      <div style={{ marginBottom: "24px" }}>
-        {status === "loading" ? (
-          <p>로그인 상태 확인 중...</p>
-        ) : session ? (
+    <main className="min-h-screen bg-zinc-950 text-white">
+      <div className="mx-auto max-w-6xl px-6 py-10">
+        <header className="mb-10 flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur md:flex-row md:items-center md:justify-between">
           <div>
-            <p style={{ marginBottom: "8px" }}>
-              로그인됨: {session.user?.email}
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300">
+              <Sparkles className="h-3.5 w-3.5" />
+              AI Dubbing Studio
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Create dubbed audio and video in minutes
+            </h1>
+            <p className="mt-2 text-sm text-zinc-400">
+              Upload media, translate speech, and generate a dubbed result from
+              one clean workflow.
             </p>
+          </div>
 
-            {checkingAccess ? (
-              <p style={{ color: "#666", marginBottom: "12px" }}>
-                접근 권한 확인 중...
-              </p>
-            ) : isAllowedUser ? (
-              <p style={{ color: "green", marginBottom: "12px" }}>
-                허용된 사용자입니다. 서비스를 이용할 수 있습니다.
-              </p>
-            ) : (
-              <p style={{ color: "red", marginBottom: "12px" }}>
-                허용 리스트에 없는 계정입니다. 접근이 제한됩니다.
-              </p>
-            )}
-
+          <div className="flex flex-col items-start gap-3 md:items-end">
+            <div className="text-sm text-zinc-400">
+              Logged in as{" "}
+              <span className="font-medium text-white">
+                {session.user?.email}
+              </span>
+            </div>
             <button
               onClick={() => signOut()}
-              style={{
-                padding: "10px 16px",
-                borderRadius: "8px",
-                border: "none",
-                cursor: "pointer",
-                marginRight: "8px",
-              }}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10"
             >
-              로그아웃
+              <LogOut className="h-4 w-4" />
+              Logout
             </button>
           </div>
-        ) : (
-          <button
-            onClick={() => signIn("google")}
-            style={{
-              padding: "10px 16px",
-              borderRadius: "8px",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Google로 로그인
-          </button>
-        )}
-      </div>
+        </header>
 
-      <p style={{ marginBottom: "24px" }}>
-        텍스트를 입력하면 ElevenLabs를 통해 음성을 생성합니다.
-      </p>
+        <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl backdrop-blur">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold">Upload your media</h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                Supports audio and video files for transcription, translation,
+                and dubbing.
+              </p>
+            </div>
 
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="여기에 더빙할 텍스트를 입력하세요."
-        rows={8}
-        disabled={!session || !isAllowedUser || checkingAccess}
-        style={{
-          width: "100%",
-          padding: "16px",
-          fontSize: "16px",
-          borderRadius: "8px",
-          border: "1px solid #ccc",
-          marginBottom: "16px",
-          backgroundColor:
-            !session || !isAllowedUser || checkingAccess ? "#f3f3f3" : "white",
-        }}
-      />
+            <label className="group flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-zinc-900/60 px-6 py-12 text-center transition hover:border-cyan-400/40 hover:bg-zinc-900">
+              <Upload className="mb-4 h-10 w-10 text-zinc-400 group-hover:text-cyan-300" />
+              <span className="text-lg font-medium">
+                Click to choose an audio or video file
+              </span>
+              <span className="mt-2 text-sm text-zinc-400">
+                MP3, WAV, MP4, MOV and more
+              </span>
+              <input
+                type="file"
+                accept="audio/*,video/*"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    setFile(e.target.files[0]);
+                  }
+                }}
+              />
+            </label>
 
-      <button
-        onClick={handleGenerateSpeech}
-        disabled={loading || !session || !isAllowedUser || checkingAccess}
-        style={{
-          padding: "12px 20px",
-          fontSize: "16px",
-          borderRadius: "8px",
-          border: "none",
-          cursor:
-            loading || !session || !isAllowedUser || checkingAccess
-              ? "not-allowed"
-              : "pointer",
-          opacity:
-            loading || !session || !isAllowedUser || checkingAccess ? 0.6 : 1,
-        }}
-      >
-        {loading ? "생성 중..." : "음성 생성"}
-      </button>
+            {file && (
+              <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
+                {file.type.startsWith("video/") ? (
+                  <FileVideo className="h-5 w-5 text-cyan-300" />
+                ) : (
+                  <FileAudio className="h-5 w-5 text-cyan-300" />
+                )}
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{file.name}</p>
+                  <p className="text-sm text-zinc-400">
+                    {(file.size / 1024 / 1024).toFixed(2)} MB ·{" "}
+                    {file.type || "Unknown type"}
+                  </p>
+                </div>
+              </div>
+            )}
 
-      {error && (
-        <p style={{ color: "red", marginTop: "16px" }}>{error}</p>
-      )}
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-300">
+                  Target Language
+                </label>
+                <div className="relative">
+                  <Languages className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <select
+                    value={targetLang}
+                    onChange={(e) => setTargetLang(e.target.value)}
+                    className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-900 px-10 py-3 text-white outline-none transition focus:border-cyan-400/50"
+                  >
+                    <option>Korean</option>
+                    <option>English</option>
+                    <option>Japanese</option>
+                    <option>Spanish</option>
+                  </select>
+                </div>
+              </div>
 
-      {audioUrl && (
-        <div style={{ marginTop: "24px" }}>
-          <h2 style={{ marginBottom: "12px" }}>생성된 음성</h2>
-          <audio controls src={audioUrl} style={{ width: "100%" }} />
+              <div className="flex items-end">
+                <button
+                  onClick={handleGenerate}
+                  disabled={loading}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 font-medium text-black transition hover:scale-[1.01] hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generate Dub
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <MiniStat title="Step 1" desc="Transcribe speech" />
+              <MiniStat title="Step 2" desc="Translate text" />
+              <MiniStat title="Step 3" desc="Generate dub" />
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl backdrop-blur">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold">Result Preview</h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                Your dubbed output will appear here when generation completes.
+              </p>
+            </div>
+
+            {!resultUrl && (
+              <div className="flex min-h-[360px] flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-zinc-900/60 text-center">
+                <PlayCircle className="mb-4 h-12 w-12 text-zinc-500" />
+                <p className="text-lg font-medium text-zinc-300">
+                  No generated result yet
+                </p>
+                <p className="mt-2 max-w-sm text-sm text-zinc-500">
+                  Upload a file, choose a language, and run dub generation to
+                  preview the output here.
+                </p>
+              </div>
+            )}
+
+            {resultUrl && resultType === "audio" && (
+              <div className="rounded-3xl border border-white/10 bg-zinc-900/70 p-5">
+                <div className="mb-4 flex items-center gap-2">
+                  <FileAudio className="h-5 w-5 text-cyan-300" />
+                  <h3 className="font-semibold">Dubbed Audio</h3>
+                </div>
+
+                <audio controls src={resultUrl} className="w-full" />
+
+                <a
+                  href={resultUrl}
+                  download="dubbed-audio.mp3"
+                  className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Audio
+                </a>
+              </div>
+            )}
+
+            {resultUrl && resultType === "video" && (
+              <div className="rounded-3xl border border-white/10 bg-zinc-900/70 p-5">
+                <div className="mb-4 flex items-center gap-2">
+                  <FileVideo className="h-5 w-5 text-cyan-300" />
+                  <h3 className="font-semibold">Dubbed Video</h3>
+                </div>
+
+                <video
+                  controls
+                  src={resultUrl}
+                  className="w-full rounded-2xl border border-white/10"
+                />
+
+                <a
+                  href={resultUrl}
+                  download="dubbed-video.mp4"
+                  className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Video
+                </a>
+              </div>
+            )}
+          </section>
         </div>
-      )}
+      </div>
     </main>
+  );
+}
+
+function FeatureRow({
+  icon,
+  title,
+  desc,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
+      <div className="rounded-xl bg-white/10 p-2 text-cyan-300">{icon}</div>
+      <div>
+        <h3 className="font-semibold text-white">{title}</h3>
+        <p className="mt-1 text-sm text-zinc-400">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4">
+      <p className="text-xs uppercase tracking-wide text-zinc-500">{title}</p>
+      <p className="mt-1 font-medium text-zinc-200">{desc}</p>
+    </div>
   );
 }
