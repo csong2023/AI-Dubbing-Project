@@ -6,7 +6,7 @@ import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { auth } from "@/auth";
-import { isAllowedEmail } from "@/lib/allowed-users";
+import { isAllowedEmail } from "../../lib/allowed-users";
 
 export const runtime = "nodejs";
 
@@ -22,18 +22,6 @@ export async function POST(req: Request) {
   let outputPath = "";
 
   try {
-    const session = await auth();
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const allowed = await isAllowedEmail(session.user.email);
-
-    if (!allowed) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const text = formData.get("text") as string | null;
@@ -50,9 +38,7 @@ export async function POST(req: Request) {
     await mkdir(tempDir, { recursive: true });
 
     const originalName = file.name || "input";
-    const ext =
-      path.extname(originalName) ||
-      (file.type.startsWith("video/") ? ".mp4" : ".mp3");
+    const ext = path.extname(originalName) || (file.type.startsWith("video/") ? ".mp4" : ".mp3");
 
     inputPath = path.join(tempDir, `input${ext}`);
     ttsPath = path.join(tempDir, "tts.mp3");
@@ -61,9 +47,11 @@ export async function POST(req: Request) {
       file.type.startsWith("video/") ? "output.mp4" : "output.mp3"
     );
 
+    // save uploaded file
     const inputBuffer = Buffer.from(await file.arrayBuffer());
     await writeFile(inputPath, inputBuffer);
 
+    // generate TTS
     const ttsResponse = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
       voice: "alloy",
@@ -73,6 +61,7 @@ export async function POST(req: Request) {
     const ttsBuffer = Buffer.from(await ttsResponse.arrayBuffer());
     await writeFile(ttsPath, ttsBuffer);
 
+    // if input is video -> return mp4 with dubbed audio
     if (file.type.startsWith("video/")) {
       await execFileAsync("ffmpeg", [
         "-y",
@@ -103,6 +92,7 @@ export async function POST(req: Request) {
       });
     }
 
+    // if input is audio -> just return generated dubbed audio
     const out = await readFile(ttsPath);
 
     return new Response(out, {
