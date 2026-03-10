@@ -74,7 +74,7 @@ export default function Home() {
               </div>
 
               <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-                AI Dubbing Service
+                DubTranslate
               </h1>
 
               <p className="mt-6 max-w-xl text-lg leading-8 text-zinc-400">
